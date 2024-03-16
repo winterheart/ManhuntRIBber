@@ -14,6 +14,24 @@ to RIB format.
 
 ## File format
 
+The file is a stream of samples encoded by a variation of the ADPCM IMA
+algorithm (in FFMPEG this algorithm is identified as `ADPCM_IMA_QT`, but the
+implementation differs in detail).
+
+Each of the channels is in turn encoded in an interleave of 0x10000 bytes in
+size into frames of 0x400 bytes in size. Thus, in one interleave there are up
+to 64 channel frames, encoded by a variation of the `ADPCM_IMA_QT` algorithm.
+The key difference from the original implementation is the storage of data for
+encoder initialization: while `ADPCM_IMA_QT` uses packed storage of `predicor`
+and `step_index` in a 16-bit value, in the modified algorithm `predictor` is
+stored in the first and second bytes of the frame as 16-bit number
+(little-endian), and `step_index` is in the third byte as an 8-bit number.
+The structure is aligned to four bytes, leaving the fourth byte unused and
+equal to zero.
+
+If there is fewer data than the frame size at the end of the file, the
+remaining frame and interleave space remains filled with zeros.
+
 ## License
 
 Project licensed under LGPL-2.1 or later license. See LICENSE file for more info.

@@ -1,11 +1,14 @@
 /* SPDX-FileCopyrightText: Copyright 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com> */
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
 
+#include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <vector>
 
 #include "adpcm_decoder.h"
+#include "CLI11.hpp"
 
 typedef struct WAV_HEADER {
   char RIFF[4] = {'R', 'I', 'F', 'F'}; // RIFF Header      Magic header
@@ -23,18 +26,25 @@ typedef struct WAV_HEADER {
   uint32_t Subchunk2Size = 0;                 // Sampled data length
 } wav_hdr;
 
-int main(int argc, char *argv[]) {
+void decode(const std::filesystem::path& in_file, std::filesystem::path out_file) {
   int interleave = 0x10000;
   int chunk_size = 0x400;
   int nb_chunk_encoded = chunk_size - 4;
-  int nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
+  int nb_chuck_decoded = 2 * nb_chunk_encoded;
+#ifdef PLACE_PREDICTOR_TWICE
+  // dunno, why towav places predictor twice at beginning?
+  nb_chuck_decoded++;
+#endif
 
-  std::ifstream input_file("JOURNO.RIB", std::ios::binary);
-  std::ofstream output_file("JOURNO.WAV", std::ios::binary);
+  if (out_file.empty()) {
+    (out_file = in_file).replace_extension("wav");
+  }
+  std::ifstream input_file(in_file, std::ios::binary);
+  std::ofstream output_file(out_file, std::ios::binary);
 
   if (!input_file.is_open() || !output_file.is_open()) {
     std::cout << "Can't open input or output file" << std::endl;
-    return 1;
+    return;
   }
 
   input_file.seekg(0, std::ios::end);
@@ -74,5 +84,82 @@ int main(int argc, char *argv[]) {
 
   input_file.close();
   output_file.close();
+}
+
+void encode(const std::filesystem::path& in_file, std::filesystem::path out_file) {
+  int interleave = 0x10000;
+  int chunk_size = 0x400;
+  int nb_chunk_encoded = chunk_size - 4;
+  int nb_chuck_decoded = 2 * nb_chunk_encoded;
+
+#ifdef PLACE_PREDICTOR_TWICE
+  // dunno, why towav places predictor twice at beginning?
+  nb_chuck_decoded++;
+#endif
+
+  if (out_file.empty()) {
+    (out_file = in_file).replace_extension("rib");
+  }
+  std::ifstream input_file(in_file, std::ios::binary);
+  std::ofstream output_file(out_file, std::ios::binary);
+
+  if (!input_file.is_open() || !output_file.is_open()) {
+    std::cout << "Can't open input or output file" << std::endl;
+    return;
+  }
+
+  std::vector<std::vector<int16_t>> inputs(2);
+
+  std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(2, std::make_shared<std::vector<int8_t>>());
+  input_file.seekg(sizeof(wav_hdr), std::ios::beg);
+
+  while (!input_file.eof()) {
+    for (int ch = 0; ch < 2; ch++) {
+      int16_t in;
+      input_file.read(reinterpret_cast<char *>(&in), 2);
+      inputs[ch].push_back(in);
+    }
+  }
+  input_file.close();
+
+  for (int ch = 0; ch < 2; ch++) {
+    auto channel_status = std::make_shared<ADPCMChannelStatus>();
+    channel_status->prev_sample = inputs[ch].at(0);
+    for (int sample = 0; sample < interleave / chunk_size ; sample++) {
+      std::vector<int16_t> input_frame(inputs[ch].begin() + sample * nb_chuck_decoded, inputs[ch].begin() + (sample + 1) * nb_chuck_decoded);
+      adpcm_rib_encode_frame(channel_status, std::make_shared<std::vector<int16_t>>(input_frame), outputs[ch]);
+    }
+  }
+  output_file.write(reinterpret_cast<const char *>(outputs[0]->data()), outputs[0]->size());
+  output_file.write(reinterpret_cast<const char *>(outputs[1]->data()), outputs[0]->size());
+  output_file.close();
+  std::cout << outputs[0]->size() << std::endl;
+}
+
+int main(int argc, char *argv[]) {
+
+  std::filesystem::path in_file;
+  std::filesystem::path out_file;
+
+
+  CLI::App app{"ManhuntRIBber - encode/decode RIB files from Rockstar's Manhunt PC game"};
+  argv = app.ensure_utf8(argv);
+
+  auto encode_cmd = app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&](){
+    encode(in_file, out_file);
+  });
+
+  auto decode_cmd = app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&](){
+    decode(in_file, out_file);
+  });
+
+  encode_cmd->add_option("input", in_file, "Input RIB file")->required()->check(CLI::ExistingFile);
+  encode_cmd->add_option("output", out_file, "Output WAV file");
+
+  decode_cmd->add_option("input", in_file, "Input WAV file")->required()->check(CLI::ExistingFile);
+  decode_cmd->add_option("output", out_file, "Output RIB file");
+
+  CLI11_PARSE(app, argc, argv);
+
   return 0;
 }

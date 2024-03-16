@@ -10,9 +10,9 @@ typedef struct ADPCMChannelStatus {
   int predictor;
   int16_t step_index;
   int step;
-  int prev_sample;  // for encoding
+  int16_t prev_sample;  // for encoding
 } ADPCMChannelStatus;
 
-int adpcm_ima_qt_expand_nibble(const std::shared_ptr<ADPCMChannelStatus>& c, int nibble);
+int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>&in_stream, std::shared_ptr<std::vector<int16_t>> out_stream);
 
-int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>& input_stream, std::shared_ptr<std::vector<int16_t>> out_stream);
+int adpcm_rib_encode_frame(std::shared_ptr<ADPCMChannelStatus> channel_status, std::shared_ptr<std::vector<int16_t>> in_stream, std::shared_ptr<std::vector<int8_t>> out_stream);

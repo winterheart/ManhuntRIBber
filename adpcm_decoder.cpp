@@ -2,6 +2,8 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
 
 #include <algorithm>
+#include <iostream>
+#include <format>
 #include <memory>
 #include <vector>
 
@@ -36,7 +38,7 @@ static int16_t adpcm_clip_int16(int a) {
 }
 
 // Code borrowed from FFMPEG
-int adpcm_ima_qt_expand_nibble(const std::shared_ptr<ADPCMChannelStatus>& c, int nibble) {
+static inline int adpcm_ima_qt_expand_nibble(const std::shared_ptr<ADPCMChannelStatus>& c, int nibble) {
   int step_index;
   int predictor;
   int diff, step;
@@ -64,18 +66,78 @@ int adpcm_ima_qt_expand_nibble(const std::shared_ptr<ADPCMChannelStatus>& c, int
   return c->predictor;
 }
 
-int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>& input_stream, std::shared_ptr<std::vector<int16_t>> out_stream) {
+// Code borrowed from FFMPEG
+static inline uint8_t adpcm_ima_qt_compress_sample(const std::shared_ptr<ADPCMChannelStatus>& c, int16_t sample) {
+  int delta  = sample - c->prev_sample;
+  int diff, step = adpcm_step_table[c->step_index];
+  int nibble = 8 * (delta < 0);
+
+  delta= abs(delta);
+  diff = delta + (step >> 3);
+
+  if (delta >= step) {
+    nibble |= 4;
+    delta  -= step;
+  }
+  step >>= 1;
+  if (delta >= step) {
+    nibble |= 2;
+    delta  -= step;
+  }
+  step >>= 1;
+  if (delta >= step) {
+    nibble |= 1;
+    delta  -= step;
+  }
+  diff -= delta;
+
+  if (nibble & 8)
+    c->prev_sample -= diff;
+  else
+    c->prev_sample += diff;
+
+  c->prev_sample = adpcm_clip_int16(c->prev_sample);
+  c->step_index = std::clamp(c->step_index + adpcm_index_table[nibble], 0, 88);
+
+  return nibble;
+}
+
+int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>&in_stream, std::shared_ptr<std::vector<int16_t>> out_stream) {
   auto channel_status = std::make_shared<ADPCMChannelStatus>();
 
-  channel_status->predictor = (((uint32_t)input_stream->at(1)) << 8) | (uint8_t)input_stream->at(0);
-  channel_status->step_index = input_stream->at(2);
+  channel_status->predictor = (((uint32_t)in_stream->at(1)) << 8) | (uint8_t)in_stream->at(0);
+  channel_status->step_index = in_stream->at(2);
 
+#ifdef PLACE_PREDICTOR_TWICE
+  // dunno, why towav places predictor twice at beginning?
   out_stream->push_back((int16_t)channel_status->predictor);
+#endif
 
-  for (auto pos = input_stream->cbegin() + 4; pos != input_stream->cend(); ++pos) {
+  for (auto pos = in_stream->cbegin() + 4; pos != in_stream->cend(); ++pos) {
     out_stream->push_back((int16_t)adpcm_ima_qt_expand_nibble(channel_status, ((uint8_t)*pos) & 0x0f));
     out_stream->push_back((int16_t)adpcm_ima_qt_expand_nibble(channel_status, ((uint8_t)*pos) >> 4));
   }
+  std::cout << std::format("{:04x}", (uint16_t)channel_status->predictor) << std::endl;
 
+  return 0;
+}
+
+int adpcm_rib_encode_frame(std::shared_ptr<ADPCMChannelStatus> channel_status, std::shared_ptr<std::vector<int16_t>> in_stream, std::shared_ptr<std::vector<int8_t>> out_stream) {
+
+  out_stream->push_back((int8_t)((uint8_t) (channel_status->prev_sample & 0xFF)));
+  out_stream->push_back((uint8_t)(channel_status->prev_sample >> 8));
+  out_stream->push_back((int8_t)channel_status->step_index);
+  out_stream->push_back(0);
+
+  auto test1 = (uint8_t)(channel_status->prev_sample >> 8);
+  auto test2 = (uint8_t)(channel_status->prev_sample & 0xFF);
+
+  std::cout << std::format("{:04x} ({:02x}:{:02x}),{:02x}", (uint16_t)channel_status->prev_sample, test1, test2, channel_status->step_index) << std::endl;
+  auto pos = in_stream->cbegin();
+  while (pos != in_stream->cend()) {
+    uint8_t nibble1 = adpcm_ima_qt_compress_sample(channel_status, *pos++);
+    uint8_t nibble2 = adpcm_ima_qt_compress_sample(channel_status, *pos++);
+    out_stream->push_back((int8_t)(nibble2 << 4 | nibble1));
+  }
   return 0;
 }
