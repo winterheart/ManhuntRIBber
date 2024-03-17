@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "adpcm_decoder.h"
+#include "manhuntribber_version.h"
 #include "CLI11.hpp"
 
 typedef struct WAV_HEADER {
@@ -159,7 +160,11 @@ int main(int argc, char *argv[]) {
   std::filesystem::path out_file;
 
   CLI::App app{"ManhuntRIBber - encode/decode RIB files from Rockstar's Manhunt PC game"};
+  app.set_version_flag("-v", MANHUNTRIBBER_VERSION);
   argv = app.ensure_utf8(argv);
+  std::cout << std::format("ManhuntRIBber {} https://github.com/winterheart/ManhuntRIBber\n"
+                           "(c) 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com>\n",
+                           app.version()) << std::endl;
 
   auto encode_cmd = app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&](){
     encode(in_file, out_file);
@@ -168,7 +173,6 @@ int main(int argc, char *argv[]) {
   auto decode_cmd = app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&](){
     decode(in_file, out_file);
   });
-
   encode_cmd->add_option("input", in_file, "Input RIB file")->required()->check(CLI::ExistingFile);
   encode_cmd->add_option("output", out_file, "Output WAV file");
 
