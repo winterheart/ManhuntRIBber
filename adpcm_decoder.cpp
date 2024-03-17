@@ -2,9 +2,6 @@
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
 
 #include <algorithm>
-#include <iostream>
-#include <format>
-#include <memory>
 #include <vector>
 
 #include "adpcm_decoder.h"
@@ -102,38 +99,31 @@ static inline uint8_t adpcm_ima_qt_compress_sample(const std::shared_ptr<ADPCMCh
   return nibble;
 }
 
-int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>&in_stream, std::shared_ptr<std::vector<int16_t>> out_stream) {
+int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>&in_stream, const std::shared_ptr<std::vector<int16_t>>& out_stream) {
   auto channel_status = std::make_shared<ADPCMChannelStatus>();
 
   channel_status->predictor = (((uint32_t)in_stream->at(1)) << 8) | (uint8_t)in_stream->at(0);
   channel_status->step_index = in_stream->at(2);
 
-#ifdef PLACE_PREDICTOR_TWICE
-  // dunno, why towav places predictor twice at beginning?
+  // Save first sample as is
   out_stream->push_back((int16_t)channel_status->predictor);
-#endif
 
   for (auto pos = in_stream->cbegin() + 4; pos != in_stream->cend(); ++pos) {
     out_stream->push_back((int16_t)adpcm_ima_qt_expand_nibble(channel_status, ((uint8_t)*pos) & 0x0f));
     out_stream->push_back((int16_t)adpcm_ima_qt_expand_nibble(channel_status, ((uint8_t)*pos) >> 4));
   }
-  std::cout << std::format("{:04x}", (uint16_t)channel_status->predictor) << std::endl;
 
   return 0;
 }
 
-int adpcm_rib_encode_frame(std::shared_ptr<ADPCMChannelStatus> channel_status, std::shared_ptr<std::vector<int16_t>> in_stream, std::shared_ptr<std::vector<int8_t>> out_stream) {
-
+int adpcm_rib_encode_frame(const std::shared_ptr<ADPCMChannelStatus>& channel_status, const std::shared_ptr<std::vector<int16_t>>& in_stream, const std::shared_ptr<std::vector<int8_t>>& out_stream) {
+  channel_status->prev_sample = in_stream->at(0);
   out_stream->push_back((int8_t)((uint8_t) (channel_status->prev_sample & 0xFF)));
   out_stream->push_back((uint8_t)(channel_status->prev_sample >> 8));
   out_stream->push_back((int8_t)channel_status->step_index);
   out_stream->push_back(0);
 
-  auto test1 = (uint8_t)(channel_status->prev_sample >> 8);
-  auto test2 = (uint8_t)(channel_status->prev_sample & 0xFF);
-
-  std::cout << std::format("{:04x} ({:02x}:{:02x}),{:02x}", (uint16_t)channel_status->prev_sample, test1, test2, channel_status->step_index) << std::endl;
-  auto pos = in_stream->cbegin();
+  auto pos = in_stream->cbegin() + 1;
   while (pos != in_stream->cend()) {
     uint8_t nibble1 = adpcm_ima_qt_compress_sample(channel_status, *pos++);
     uint8_t nibble2 = adpcm_ima_qt_compress_sample(channel_status, *pos++);

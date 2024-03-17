@@ -1,8 +1,8 @@
 /* SPDX-FileCopyrightText: Copyright 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com> */
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
 
-#include <cmath>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -17,7 +17,7 @@ typedef struct WAV_HEADER {
   char fmt[4] = {'f', 'm', 't', ' '};  // FMT header
   uint32_t Subchunk1Size = 16;         // Size of the fmt chunk
   uint16_t AudioFormat = 1;            // Audio format 1=PCM,6=mulaw,7=alaw, 257=IBM Mu-Law, 258=IBM A-Law, 259=ADPCM
-  uint16_t NumOfChan = 2;              // Number of channels 1=Mono 2=Sterio
+  uint16_t NumOfChan = 2;              // Number of channels 1=Mono 2=Stereo
   uint32_t SamplesPerSec = 44100;      // Sampling Frequency in Hz
   uint32_t bytesPerSec = 176400;       // bytes per second (SamplesPerSec * blockAlign)
   uint16_t blockAlign = 4;             // 2=16-bit mono, 4=16-bit stereo
@@ -30,11 +30,7 @@ void decode(const std::filesystem::path& in_file, std::filesystem::path out_file
   int interleave = 0x10000;
   int chunk_size = 0x400;
   int nb_chunk_encoded = chunk_size - 4;
-  int nb_chuck_decoded = 2 * nb_chunk_encoded;
-#ifdef PLACE_PREDICTOR_TWICE
-  // dunno, why towav places predictor twice at beginning?
-  nb_chuck_decoded++;
-#endif
+  int nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
 
   if (out_file.empty()) {
     (out_file = in_file).replace_extension("wav");
@@ -42,10 +38,16 @@ void decode(const std::filesystem::path& in_file, std::filesystem::path out_file
   std::ifstream input_file(in_file, std::ios::binary);
   std::ofstream output_file(out_file, std::ios::binary);
 
-  if (!input_file.is_open() || !output_file.is_open()) {
-    std::cout << "Can't open input or output file" << std::endl;
-    return;
+  if (!input_file.is_open()) {
+    std::cout << std::format("Can't open input file for reading {}", in_file.string()) << std::endl;
+    exit(1);
   }
+  if (!output_file.is_open()) {
+    std::cout << std::format("Can't open output file for writing {}", out_file.string()) << std::endl;
+    exit(1);
+  }
+
+  std::cout << std::format("Decoding {} to {}... ", in_file.string(), out_file.string());
 
   input_file.seekg(0, std::ios::end);
   size_t input_size = input_file.tellg();
@@ -84,18 +86,14 @@ void decode(const std::filesystem::path& in_file, std::filesystem::path out_file
 
   input_file.close();
   output_file.close();
+  std::cout << "done!" << std::endl;
 }
 
 void encode(const std::filesystem::path& in_file, std::filesystem::path out_file) {
   int interleave = 0x10000;
   int chunk_size = 0x400;
   int nb_chunk_encoded = chunk_size - 4;
-  int nb_chuck_decoded = 2 * nb_chunk_encoded;
-
-#ifdef PLACE_PREDICTOR_TWICE
-  // dunno, why towav places predictor twice at beginning?
-  nb_chuck_decoded++;
-#endif
+  int nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
 
   if (out_file.empty()) {
     (out_file = in_file).replace_extension("rib");
@@ -103,14 +101,23 @@ void encode(const std::filesystem::path& in_file, std::filesystem::path out_file
   std::ifstream input_file(in_file, std::ios::binary);
   std::ofstream output_file(out_file, std::ios::binary);
 
-  if (!input_file.is_open() || !output_file.is_open()) {
-    std::cout << "Can't open input or output file" << std::endl;
-    return;
+  if (!input_file.is_open()) {
+    std::cout << std::format("Can't open input file for reading {}", in_file.string()) << std::endl;
+    exit(1);
+  }
+  if (!output_file.is_open()) {
+    std::cout << std::format("Can't open output file for writing {}", out_file.string()) << std::endl;
+    exit(1);
   }
 
-  std::vector<std::vector<int16_t>> inputs(2);
+  std::cout << std::format("Encoding {} to {}... ", in_file.string(), out_file.string());
 
-  std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(2, std::make_shared<std::vector<int8_t>>());
+  std::vector<std::vector<int16_t>> inputs(2);
+  std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(2);
+  for (auto &out : outputs) {
+    out = std::make_shared<std::vector<int8_t>>();
+  }
+
   input_file.seekg(sizeof(wav_hdr), std::ios::beg);
 
   while (!input_file.eof()) {
@@ -121,26 +128,35 @@ void encode(const std::filesystem::path& in_file, std::filesystem::path out_file
     }
   }
   input_file.close();
+  int nb_interleaves_per_ch = std::floor(inputs[0].size() / (2 * nb_chunk_encoded * interleave / chunk_size));
 
   for (int ch = 0; ch < 2; ch++) {
+    // Reserve additional size in inputs
+    inputs[ch].reserve(nb_interleaves_per_ch * 2 * nb_chunk_encoded * interleave / chunk_size);
+
     auto channel_status = std::make_shared<ADPCMChannelStatus>();
-    channel_status->prev_sample = inputs[ch].at(0);
-    for (int sample = 0; sample < interleave / chunk_size ; sample++) {
-      std::vector<int16_t> input_frame(inputs[ch].begin() + sample * nb_chuck_decoded, inputs[ch].begin() + (sample + 1) * nb_chuck_decoded);
+    for (int sample = 0; sample < nb_interleaves_per_ch * interleave / chunk_size; sample++) {
+      std::vector<int16_t> input_frame(inputs[ch].begin() + sample * nb_chuck_decoded,
+                                       inputs[ch].begin() + (sample + 1) * nb_chuck_decoded);
       adpcm_rib_encode_frame(channel_status, std::make_shared<std::vector<int16_t>>(input_frame), outputs[ch]);
     }
   }
-  output_file.write(reinterpret_cast<const char *>(outputs[0]->data()), outputs[0]->size());
-  output_file.write(reinterpret_cast<const char *>(outputs[1]->data()), outputs[0]->size());
+
+  for (int i = 0; i < nb_interleaves_per_ch * interleave; i += interleave) {
+    for (int ch = 0; ch < 2; ch++) {
+      std::vector<int8_t> buffer(outputs[ch]->begin() + i, outputs[ch]->begin() + (i + interleave));
+      output_file.write(reinterpret_cast<char *>(buffer.data()), interleave);
+    }
+  }
+
   output_file.close();
-  std::cout << outputs[0]->size() << std::endl;
+  std::cout << "done!" << std::endl;
 }
 
 int main(int argc, char *argv[]) {
 
   std::filesystem::path in_file;
   std::filesystem::path out_file;
-
 
   CLI::App app{"ManhuntRIBber - encode/decode RIB files from Rockstar's Manhunt PC game"};
   argv = app.ensure_utf8(argv);

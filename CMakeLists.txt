@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(ManhuntRIBber VERSION 0.1.0 LANGUAGES CXX)
+project(ManhuntRIBber VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,5 +12,3 @@ add_executable(manhuntribber
 	adpcm_decoder.cpp
 	main.cpp
 )
-
-#add_compile_definitions(manhuntribber -DPLACE_PREDICTOR_TWICE=1)
