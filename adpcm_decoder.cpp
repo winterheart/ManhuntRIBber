@@ -35,7 +35,7 @@ static int16_t adpcm_clip_int16(int a) {
 }
 
 // Code borrowed from FFMPEG
-static inline int adpcm_ima_qt_expand_nibble(const std::shared_ptr<ADPCMChannelStatus>& c, int nibble) {
+static inline int adpcm_ima_qt_expand_nibble(const std::shared_ptr<ADPCMChannelStatus> &c, int nibble) {
   int step_index;
   int predictor;
   int diff, step;
@@ -64,27 +64,27 @@ static inline int adpcm_ima_qt_expand_nibble(const std::shared_ptr<ADPCMChannelS
 }
 
 // Code borrowed from FFMPEG
-static inline uint8_t adpcm_ima_qt_compress_sample(const std::shared_ptr<ADPCMChannelStatus>& c, int16_t sample) {
-  int delta  = sample - c->prev_sample;
+static inline uint8_t adpcm_ima_qt_compress_sample(const std::shared_ptr<ADPCMChannelStatus> &c, int16_t sample) {
+  int delta = sample - c->prev_sample;
   int diff, step = adpcm_step_table[c->step_index];
   int nibble = 8 * (delta < 0);
 
-  delta= abs(delta);
+  delta = abs(delta);
   diff = delta + (step >> 3);
 
   if (delta >= step) {
     nibble |= 4;
-    delta  -= step;
+    delta -= step;
   }
   step >>= 1;
   if (delta >= step) {
     nibble |= 2;
-    delta  -= step;
+    delta -= step;
   }
   step >>= 1;
   if (delta >= step) {
     nibble |= 1;
-    delta  -= step;
+    delta -= step;
   }
   diff -= delta;
 
@@ -99,7 +99,8 @@ static inline uint8_t adpcm_ima_qt_compress_sample(const std::shared_ptr<ADPCMCh
   return nibble;
 }
 
-int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>&in_stream, const std::shared_ptr<std::vector<int16_t>>& out_stream) {
+int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>> &in_stream,
+                           const std::shared_ptr<std::vector<int16_t>> &out_stream) {
   auto channel_status = std::make_shared<ADPCMChannelStatus>();
 
   channel_status->predictor = (((uint32_t)in_stream->at(1)) << 8) | (uint8_t)in_stream->at(0);
@@ -116,9 +117,11 @@ int adpcm_rib_decode_frame(const std::shared_ptr<std::vector<int8_t>>&in_stream,
   return 0;
 }
 
-int adpcm_rib_encode_frame(const std::shared_ptr<ADPCMChannelStatus>& channel_status, const std::shared_ptr<std::vector<int16_t>>& in_stream, const std::shared_ptr<std::vector<int8_t>>& out_stream) {
+int adpcm_rib_encode_frame(const std::shared_ptr<ADPCMChannelStatus> &channel_status,
+                           const std::shared_ptr<std::vector<int16_t>> &in_stream,
+                           const std::shared_ptr<std::vector<int8_t>> &out_stream) {
   channel_status->prev_sample = in_stream->at(0);
-  out_stream->push_back((int8_t)((uint8_t) (channel_status->prev_sample & 0xFF)));
+  out_stream->push_back((int8_t)((uint8_t)(channel_status->prev_sample & 0xFF)));
   out_stream->push_back((uint8_t)(channel_status->prev_sample >> 8));
   out_stream->push_back((int8_t)channel_status->step_index);
   out_stream->push_back(0);

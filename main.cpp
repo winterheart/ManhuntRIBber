@@ -7,9 +7,9 @@
 #include <iostream>
 #include <vector>
 
+#include "CLI11.hpp"
 #include "adpcm_decoder.h"
 #include "manhuntribber_version.h"
-#include "CLI11.hpp"
 
 typedef struct WAV_HEADER {
   char RIFF[4] = {'R', 'I', 'F', 'F'}; // RIFF Header      Magic header
@@ -27,7 +27,7 @@ typedef struct WAV_HEADER {
   uint32_t Subchunk2Size = 0;                 // Sampled data length
 } wav_hdr;
 
-void decode(const std::filesystem::path& in_file, std::filesystem::path out_file) {
+void decode(const std::filesystem::path &in_file, std::filesystem::path out_file) {
   int interleave = 0x10000;
   int chunk_size = 0x400;
   int nb_chunk_encoded = chunk_size - 4;
@@ -81,7 +81,7 @@ void decode(const std::filesystem::path& in_file, std::filesystem::path out_file
   size_t size = output_file.tellp();
   // Rewrite wave header with actual sizes
   wave_header.ChunkSize = size - 8;
-  wave_header.Subchunk2Size = size  - 44;
+  wave_header.Subchunk2Size = size - 44;
   output_file.seekp(0, std::ios::beg);
   output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
 
@@ -90,7 +90,7 @@ void decode(const std::filesystem::path& in_file, std::filesystem::path out_file
   std::cout << "done!" << std::endl;
 }
 
-void encode(const std::filesystem::path& in_file, std::filesystem::path out_file) {
+void encode(const std::filesystem::path &in_file, std::filesystem::path out_file) {
   int interleave = 0x10000;
   int chunk_size = 0x400;
   int nb_chunk_encoded = chunk_size - 4;
@@ -164,15 +164,14 @@ int main(int argc, char *argv[]) {
   argv = app.ensure_utf8(argv);
   std::cout << std::format("ManhuntRIBber {} https://github.com/winterheart/ManhuntRIBber\n"
                            "(c) 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com>\n",
-                           app.version()) << std::endl;
+                           app.version())
+            << std::endl;
 
-  auto encode_cmd = app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&](){
-    encode(in_file, out_file);
-  });
+  auto encode_cmd =
+      app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&]() { encode(in_file, out_file); });
 
-  auto decode_cmd = app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&](){
-    decode(in_file, out_file);
-  });
+  auto decode_cmd =
+      app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&]() { decode(in_file, out_file); });
   encode_cmd->add_option("input", in_file, "Input RIB file")->required()->check(CLI::ExistingFile);
   encode_cmd->add_option("output", out_file, "Output WAV file");
 
