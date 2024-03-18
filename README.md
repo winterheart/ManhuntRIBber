@@ -9,8 +9,12 @@ manhuntribber decode JOURNO.RIB JOURNO.WAV
 manhuntribber encode JOURNO.WAV JOURNO.RIB
 ```
 
-A WAV-file should be PCM encoded 16-bit stereo 44100 Hz in order to be encoded
-to RIB format.
+A WAV-file should be PCM encoded 16-bit stereo 44100 Hz (or mono 22050 Hz in
+case of mono stream) in order to be encoded to RIB format.
+
+Encoding and decoding mono streams (`decode -m`) are partially supported.
+Generally mono streams are used for music and environmental sounds, but format
+of these RIBs not fully discovered.
 
 ## File format
 

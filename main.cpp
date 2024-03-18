@@ -35,13 +35,22 @@ int chunk_size = 0x400;
 int nb_chunks_in_interleave = interleave / chunk_size;
 int nb_chunk_encoded = chunk_size - 4;
 int nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
+int nb_channels = 2;  // Mono/Stereo
 
-void decode(const std::filesystem::path &in_file, std::filesystem::path out_file) {
+void decode(const std::filesystem::path &in_file, std::filesystem::path out_file, bool is_mono) {
   if (out_file.empty()) {
     (out_file = in_file).replace_extension("wav");
   }
   std::ifstream input_file(in_file, std::ios::binary);
   std::ofstream output_file(out_file, std::ios::binary);
+
+  if (is_mono) {
+    chunk_size = 0x200;
+    nb_channels = 1;
+    nb_chunks_in_interleave = interleave / chunk_size;
+    nb_chunk_encoded = chunk_size - 4;
+    nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
+  }
 
   if (!input_file.is_open()) {
     std::cout << std::format("Can't open input file for reading {}", in_file.string()) << std::endl;
@@ -58,19 +67,19 @@ void decode(const std::filesystem::path &in_file, std::filesystem::path out_file
   size_t input_size = input_file.tellg();
   input_file.seekg(0, std::ios::beg);
 
-  size_t nb_samples = input_size / (2 * interleave);
+  size_t nb_samples = input_size / (nb_channels * interleave);
   int nb_chunks = interleave / chunk_size;
 
   wav_hdr wave_header;
   output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
 
   for (int i = 0; i < nb_samples; i++) {
-    std::vector<std::shared_ptr<std::vector<int16_t>>> outputs(2);
+    std::vector<std::shared_ptr<std::vector<int16_t>>> outputs(nb_channels);
     for (auto &out : outputs) {
       out = std::make_shared<std::vector<int16_t>>();
     }
 
-    for (int ch = 0; ch < 2; ch++) {
+    for (int ch = 0; ch < nb_channels; ch++) {
       for (int j = 0; j < nb_chunks; j++) {
         std::vector<int8_t> input_buffer(chunk_size);
         input_file.read(reinterpret_cast<char *>(input_buffer.data()), chunk_size);
@@ -78,7 +87,7 @@ void decode(const std::filesystem::path &in_file, std::filesystem::path out_file
       }
     }
     for (int j = 0; j < nb_chuck_decoded * nb_chunks; j++) {
-      for (int ch = 0; ch < 2; ch++) {
+      for (int ch = 0; ch < nb_channels; ch++) {
         int16_t r = UTILS::convert_le(outputs[ch]->at(j));
         output_file.write(reinterpret_cast<char *>(&r), 2);
       }
@@ -88,6 +97,11 @@ void decode(const std::filesystem::path &in_file, std::filesystem::path out_file
   // Rewrite wave header with actual sizes
   wave_header.ChunkSize = UTILS::convert_le(size - 8);
   wave_header.Subchunk2Size = UTILS::convert_le(size - 44);
+  wave_header.NumOfChan = UTILS::convert_le(nb_channels);
+  if (is_mono) {
+    wave_header.SamplesPerSec = UTILS::convert_le(22100);
+    wave_header.bytesPerSec = UTILS::convert_le(88200);
+  }
   output_file.seekp(0, std::ios::beg);
   output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
 
@@ -114,16 +128,24 @@ void encode(const std::filesystem::path &in_file, std::filesystem::path out_file
 
   std::cout << std::format("Encoding {} to {}... ", in_file.string(), out_file.string());
 
-  std::vector<std::vector<int16_t>> inputs(2);
-  std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(2);
+  std::vector<std::vector<int16_t>> inputs(nb_channels);
+  std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(nb_channels);
   for (auto &out : outputs) {
     out = std::make_shared<std::vector<int8_t>>();
   }
 
-  input_file.seekg(sizeof(wav_hdr), std::ios::beg);
+  wav_hdr wave_header;
+  input_file.read(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
+  nb_channels = UTILS::convert_le(wave_header.NumOfChan);
+  if (nb_channels == 1) {
+    chunk_size = 0x200;
+    nb_chunks_in_interleave = interleave / chunk_size;
+    nb_chunk_encoded = chunk_size - 4;
+    nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
+  }
 
   while (!input_file.eof()) {
-    for (int ch = 0; ch < 2; ch++) {
+    for (int ch = 0; ch < nb_channels; ch++) {
       int16_t r;
       input_file.read(reinterpret_cast<char *>(&r), 2);
       inputs[ch].push_back(UTILS::convert_le(r));
@@ -132,7 +154,7 @@ void encode(const std::filesystem::path &in_file, std::filesystem::path out_file
   input_file.close();
   int nb_interleaves_per_ch = std::floor(inputs[0].size() / (2 * nb_chunk_encoded * nb_chunks_in_interleave));
 
-  for (int ch = 0; ch < 2; ch++) {
+  for (int ch = 0; ch < nb_channels; ch++) {
     // Reserve additional size in inputs
     inputs[ch].reserve(nb_interleaves_per_ch * 2 * nb_chunk_encoded * nb_chunks_in_interleave);
 
@@ -145,7 +167,7 @@ void encode(const std::filesystem::path &in_file, std::filesystem::path out_file
   }
 
   for (int i = 0; i < nb_interleaves_per_ch * interleave; i += interleave) {
-    for (int ch = 0; ch < 2; ch++) {
+    for (int ch = 0; ch < nb_channels; ch++) {
       std::vector<int8_t> buffer(outputs[ch]->begin() + i, outputs[ch]->begin() + (i + interleave));
       output_file.write(reinterpret_cast<char *>(buffer.data()), interleave);
     }
@@ -159,6 +181,7 @@ int main(int argc, char *argv[]) {
 
   std::filesystem::path in_file;
   std::filesystem::path out_file;
+  bool is_mono = false;
 
   CLI::App app{"ManhuntRIBber - encode/decode RIB files from Rockstar's Manhunt PC game"};
   app.set_version_flag("-v", MANHUNTRIBBER_VERSION);
@@ -170,12 +193,12 @@ int main(int argc, char *argv[]) {
 
   auto encode_cmd =
       app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&]() { encode(in_file, out_file); });
-
-  auto decode_cmd =
-      app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&]() { decode(in_file, out_file); });
   encode_cmd->add_option("input", in_file, "Input RIB file")->required()->check(CLI::ExistingFile);
   encode_cmd->add_option("output", out_file, "Output WAV file");
 
+  auto decode_cmd =
+      app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&]() { decode(in_file, out_file, is_mono); });
+  decode_cmd->add_flag("-m", is_mono, "Threats input file as Mono stream");
   decode_cmd->add_option("input", in_file, "Input WAV file")->required()->check(CLI::ExistingFile);
   decode_cmd->add_option("output", out_file, "Output RIB file");
 
