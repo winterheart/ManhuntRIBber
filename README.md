@@ -16,6 +16,16 @@ Encoding and decoding mono streams (`decode -m`) are partially supported.
 Generally mono streams are used for music and environmental sounds, but format
 of these RIBs not fully discovered.
 
+## Compilation
+
+Project requires any modern C++20 compiler (gcc 10, clang 10, msvc 2019) and
+cmake.
+
+```shell
+cmake -B build
+cmake --build build
+```
+
 ## File format
 
 The file is a stream of samples encoded by a variation of the ADPCM IMA
