@@ -4,9 +4,9 @@
 
 ```shell
 # Decoding
-manhuntribber -d JOURNO.RIB JOURNO.WAV
+manhuntribber decode JOURNO.RIB JOURNO.WAV
 # Encoding
-manhuntribber -e JOURNO.WAV JOURNO.RIB
+manhuntribber encode JOURNO.WAV JOURNO.RIB
 ```
 
 A WAV-file should be PCM encoded 16-bit stereo 44100 Hz in order to be encoded
