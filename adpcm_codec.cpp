@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "adpcm_decoder.h"
+#include "adpcm_codec.h"
 
 // Taken from ADPCM reference
 std::vector<int16_t> adpcm_step_table = {

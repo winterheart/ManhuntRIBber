@@ -8,31 +8,35 @@
 #include <vector>
 
 #include "CLI11.hpp"
-#include "adpcm_decoder.h"
+#include "adpcm_codec.h"
+#include "byteswap.h"
 #include "manhuntribber_version.h"
 
 typedef struct WAV_HEADER {
-  char RIFF[4] = {'R', 'I', 'F', 'F'}; // RIFF Header      Magic header
-  uint32_t ChunkSize = 0;              // RIFF Chunk Size
-  char WAVE[4] = {'W', 'A', 'V', 'E'}; // WAVE Header
-  char fmt[4] = {'f', 'm', 't', ' '};  // FMT header
-  uint32_t Subchunk1Size = 16;         // Size of the fmt chunk
-  uint16_t AudioFormat = 1;            // Audio format 1=PCM,6=mulaw,7=alaw, 257=IBM Mu-Law, 258=IBM A-Law, 259=ADPCM
-  uint16_t NumOfChan = 2;              // Number of channels 1=Mono 2=Stereo
-  uint32_t SamplesPerSec = 44100;      // Sampling Frequency in Hz
-  uint32_t bytesPerSec = 176400;       // bytes per second (SamplesPerSec * blockAlign)
-  uint16_t blockAlign = 4;             // 2=16-bit mono, 4=16-bit stereo
-  uint16_t bitsPerSample = 16;         // Number of bits per sample
-  char Subchunk2ID[4] = {'d', 'a', 't', 'a'}; // "data"  string
-  uint32_t Subchunk2Size = 0;                 // Sampled data length
+  char RIFF[4] = {'R', 'I', 'F', 'F'};               // RIFF Header      Magic header
+  uint32_t ChunkSize = 0;                            // RIFF Chunk Size
+  char WAVE[4] = {'W', 'A', 'V', 'E'};               // WAVE Header
+  char fmt[4] = {'f', 'm', 't', ' '};                // FMT header
+  uint32_t Subchunk1Size = UTILS::convert_le(16);    // Size of the fmt chunk
+  uint16_t AudioFormat = UTILS::convert_le(1);       // Audio format 1=PCM
+  uint16_t NumOfChan = UTILS::convert_le(2);         // Number of channels 1=Mono 2=Stereo
+  uint32_t SamplesPerSec = UTILS::convert_le(44100); // Sampling Frequency in Hz
+  uint32_t bytesPerSec = UTILS::convert_le(176400);  // bytes per second (SamplesPerSec * blockAlign)
+  uint16_t blockAlign = UTILS::convert_le(4);        // 2=16-bit mono, 4=16-bit stereo
+  uint16_t bitsPerSample = UTILS::convert_le(16);    // Number of bits per sample
+  char Subchunk2ID[4] = {'d', 'a', 't', 'a'};        // "data"  string
+  uint32_t Subchunk2Size = 0;                        // Sampled data length
 } wav_hdr;
 
-void decode(const std::filesystem::path &in_file, std::filesystem::path out_file) {
-  int interleave = 0x10000;
-  int chunk_size = 0x400;
-  int nb_chunk_encoded = chunk_size - 4;
-  int nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
+// Some globals
 
+int interleave = 0x10000;
+int chunk_size = 0x400;
+int nb_chunks_in_interleave = interleave / chunk_size;
+int nb_chunk_encoded = chunk_size - 4;
+int nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
+
+void decode(const std::filesystem::path &in_file, std::filesystem::path out_file) {
   if (out_file.empty()) {
     (out_file = in_file).replace_extension("wav");
   }
@@ -74,14 +78,16 @@ void decode(const std::filesystem::path &in_file, std::filesystem::path out_file
       }
     }
     for (int j = 0; j < nb_chuck_decoded * nb_chunks; j++) {
-      output_file.write(reinterpret_cast<char *>(&outputs[0]->at(j)), 2);
-      output_file.write(reinterpret_cast<char *>(&outputs[1]->at(j)), 2);
+      for (int ch = 0; ch < 2; ch++) {
+        int16_t r = UTILS::convert_le(outputs[ch]->at(j));
+        output_file.write(reinterpret_cast<char *>(&r), 2);
+      }
     }
   }
   size_t size = output_file.tellp();
   // Rewrite wave header with actual sizes
-  wave_header.ChunkSize = size - 8;
-  wave_header.Subchunk2Size = size - 44;
+  wave_header.ChunkSize = UTILS::convert_le(size - 8);
+  wave_header.Subchunk2Size = UTILS::convert_le(size - 44);
   output_file.seekp(0, std::ios::beg);
   output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
 
@@ -91,11 +97,6 @@ void decode(const std::filesystem::path &in_file, std::filesystem::path out_file
 }
 
 void encode(const std::filesystem::path &in_file, std::filesystem::path out_file) {
-  int interleave = 0x10000;
-  int chunk_size = 0x400;
-  int nb_chunk_encoded = chunk_size - 4;
-  int nb_chuck_decoded = 2 * nb_chunk_encoded + 1;
-
   if (out_file.empty()) {
     (out_file = in_file).replace_extension("rib");
   }
@@ -123,20 +124,20 @@ void encode(const std::filesystem::path &in_file, std::filesystem::path out_file
 
   while (!input_file.eof()) {
     for (int ch = 0; ch < 2; ch++) {
-      int16_t in;
-      input_file.read(reinterpret_cast<char *>(&in), 2);
-      inputs[ch].push_back(in);
+      int16_t r;
+      input_file.read(reinterpret_cast<char *>(&r), 2);
+      inputs[ch].push_back(UTILS::convert_le(r));
     }
   }
   input_file.close();
-  int nb_interleaves_per_ch = std::floor(inputs[0].size() / (2 * nb_chunk_encoded * interleave / chunk_size));
+  int nb_interleaves_per_ch = std::floor(inputs[0].size() / (2 * nb_chunk_encoded * nb_chunks_in_interleave));
 
   for (int ch = 0; ch < 2; ch++) {
     // Reserve additional size in inputs
-    inputs[ch].reserve(nb_interleaves_per_ch * 2 * nb_chunk_encoded * interleave / chunk_size);
+    inputs[ch].reserve(nb_interleaves_per_ch * 2 * nb_chunk_encoded * nb_chunks_in_interleave);
 
     auto channel_status = std::make_shared<ADPCMChannelStatus>();
-    for (int sample = 0; sample < nb_interleaves_per_ch * interleave / chunk_size; sample++) {
+    for (int sample = 0; sample < nb_interleaves_per_ch * nb_chunks_in_interleave; sample++) {
       std::vector<int16_t> input_frame(inputs[ch].begin() + sample * nb_chuck_decoded,
                                        inputs[ch].begin() + (sample + 1) * nb_chuck_decoded);
       adpcm_rib_encode_frame(channel_status, std::make_shared<std::vector<int16_t>>(input_frame), outputs[ch]);
