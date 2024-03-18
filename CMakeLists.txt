@@ -16,3 +16,7 @@ add_executable(manhuntribber
 	main.cpp
 )
 target_include_directories(manhuntribber PUBLIC	"${PROJECT_BINARY_DIR}")
+target_link_options(manhuntribber PRIVATE
+	$<$<PLATFORM_ID:Windows>:-static>
+	$<$<PLATFORM_ID:Windows>:-s>
+)
