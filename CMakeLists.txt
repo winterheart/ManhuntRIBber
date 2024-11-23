@@ -13,6 +13,8 @@ add_executable(manhuntribber
 	adpcm_codec.h
 	adpcm_codec.cpp
 	byteswap.h
+	codec.h
+	codec.cpp
 	main.cpp
 )
 target_include_directories(manhuntribber PUBLIC	"${PROJECT_BINARY_DIR}")
