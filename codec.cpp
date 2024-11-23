@@ -1,6 +1,7 @@
 /* SPDX-FileCopyrightText: Copyright 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com> */
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
 
+#include <cmath>
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -8,22 +9,6 @@
 #include "adpcm_codec.h"
 #include "byteswap.h"
 #include "codec.h"
-
-typedef struct WAV_HEADER {
-  char RIFF[4] = {'R', 'I', 'F', 'F'};               // RIFF Header      Magic header
-  uint32_t ChunkSize = 0;                            // RIFF Chunk Size
-  char WAVE[4] = {'W', 'A', 'V', 'E'};               // WAVE Header
-  char fmt[4] = {'f', 'm', 't', ' '};                // FMT header
-  uint32_t Subchunk1Size = UTILS::convert_le(16);    // Size of the fmt chunk
-  uint16_t AudioFormat = UTILS::convert_le(1);       // Audio format 1=PCM
-  uint16_t NumOfChan = UTILS::convert_le(2);         // Number of channels 1=Mono 2=Stereo
-  uint32_t SamplesPerSec = UTILS::convert_le(44100); // Sampling Frequency in Hz
-  uint32_t bytesPerSec = UTILS::convert_le(176400);  // bytes per second (SamplesPerSec * blockAlign)
-  uint16_t blockAlign = UTILS::convert_le(4);        // 2=16-bit mono, 4=16-bit stereo
-  uint16_t bitsPerSample = UTILS::convert_le(16);    // Number of bits per sample
-  char Subchunk2ID[4] = {'d', 'a', 't', 'a'};        // "data"  string
-  uint32_t Subchunk2Size = 0;                        // Sampled data length
-} wav_hdr;
 
 Codec::Codec(bool is_mono, uint32_t frequency, uint32_t count_files) {
   m_count_files = count_files;
@@ -105,4 +90,63 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
   std::cout << "done!" << std::endl;
 }
 
-void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem::path rib_file) {}
+void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem::path rib_file) {
+  auto in_file = in_files.front();
+
+  if (rib_file.empty()) {
+    (rib_file = in_file).replace_extension("rib");
+  }
+  std::ifstream input_file(in_file, std::ios::binary);
+  std::ofstream output_file(rib_file, std::ios::binary);
+
+  if (!input_file.is_open()) {
+    std::cout << std::format("Can't open input file for reading {}", in_file.string()) << std::endl;
+    exit(1);
+  }
+  if (!output_file.is_open()) {
+    std::cout << std::format("Can't open output file for writing {}", rib_file.string()) << std::endl;
+    exit(1);
+  }
+
+  std::cout << std::format("Encoding {} to {}... ", in_file.string(), rib_file.string());
+
+  std::vector<std::vector<int16_t>> inputs(m_nb_channels);
+  std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(m_nb_channels);
+  for (auto &out : outputs) {
+    out = std::make_shared<std::vector<int8_t>>();
+  }
+
+  // Ignore wav header, we already know all needed data
+  input_file.seekg(sizeof(wav_hdr), std::ios::beg);
+  while (!input_file.eof()) {
+    for (int ch = 0; ch < m_nb_channels; ch++) {
+      int16_t r;
+      input_file.read(reinterpret_cast<char *>(&r), 2);
+      inputs[ch].push_back(UTILS::convert_le(r));
+    }
+  }
+  input_file.close();
+  int nb_interleaves_per_ch = std::floor(inputs[0].size() / (2 * m_nb_chunk_encoded * m_nb_chunks_in_interleave));
+
+  for (int ch = 0; ch < m_nb_channels; ch++) {
+    // Reserve additional size in inputs
+    inputs[ch].reserve(nb_interleaves_per_ch * 2 * m_nb_chunk_encoded * m_nb_chunks_in_interleave);
+
+    auto channel_status = std::make_shared<ADPCMChannelStatus>();
+    for (int sample = 0; sample < nb_interleaves_per_ch * m_nb_chunks_in_interleave; sample++) {
+      std::vector<int16_t> input_frame(inputs[ch].begin() + sample * m_nb_chunk_decoded,
+                                       inputs[ch].begin() + (sample + 1) * m_nb_chunk_decoded);
+      adpcm_rib_encode_frame(channel_status, std::make_shared<std::vector<int16_t>>(input_frame), outputs[ch]);
+    }
+  }
+
+  for (uint32_t i = 0; i < nb_interleaves_per_ch * m_interleave; i += m_interleave) {
+    for (int ch = 0; ch < m_nb_channels; ch++) {
+      std::vector<int8_t> buffer(outputs[ch]->begin() + i, outputs[ch]->begin() + (i + m_interleave));
+      output_file.write(reinterpret_cast<char *>(buffer.data()), m_interleave);
+    }
+  }
+
+  output_file.close();
+  std::cout << "done!" << std::endl;
+}

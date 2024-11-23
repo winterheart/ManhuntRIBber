@@ -7,6 +7,22 @@
 #include <filesystem>
 #include <vector>
 
+typedef struct WAV_HEADER {
+  char RIFF[4] = {'R', 'I', 'F', 'F'};               // RIFF Header      Magic header
+  uint32_t ChunkSize = 0;                            // RIFF Chunk Size
+  char WAVE[4] = {'W', 'A', 'V', 'E'};               // WAVE Header
+  char fmt[4] = {'f', 'm', 't', ' '};                // FMT header
+  uint32_t Subchunk1Size = UTILS::convert_le(16);    // Size of the fmt chunk
+  uint16_t AudioFormat = UTILS::convert_le(1);       // Audio format 1=PCM
+  uint16_t NumOfChan = UTILS::convert_le(2);         // Number of channels 1=Mono 2=Stereo
+  uint32_t SamplesPerSec = UTILS::convert_le(44100); // Sampling Frequency in Hz
+  uint32_t bytesPerSec = UTILS::convert_le(176400);  // bytes per second (SamplesPerSec * blockAlign)
+  uint16_t blockAlign = UTILS::convert_le(4);        // 2=16-bit mono, 4=16-bit stereo
+  uint16_t bitsPerSample = UTILS::convert_le(16);    // Number of bits per sample
+  char Subchunk2ID[4] = {'d', 'a', 't', 'a'};        // "data"  string
+  uint32_t Subchunk2Size = 0;                        // Sampled data length
+} wav_hdr;
+
 /**
  * Class for code and decode ADPCM streams
  */
