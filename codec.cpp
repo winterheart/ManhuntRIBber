@@ -13,13 +13,9 @@
 Codec::Codec(bool is_mono, uint32_t frequency, uint32_t count_files) {
   m_count_files = count_files;
   m_frequency = frequency;
-  if (is_mono) {
-    m_nb_channels = 1;
-    m_chunk_size = 0x200;
-  } else {
-    m_nb_channels = 2;
-    m_chunk_size = 0x400;
-  }
+  m_chunk_size = (m_frequency == 22050) ? 0x200 : 0x400;
+  m_nb_channels = is_mono ? 1 : 2;
+
   m_nb_chunks_in_interleave = m_interleave / m_chunk_size;
   m_nb_chunk_encoded = m_chunk_size - 4;
   m_nb_chunk_decoded = 2 * m_nb_chunk_encoded + 1;
@@ -41,7 +37,7 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
     exit(1);
   }
 
-  std::cout << std::format("Decoding {} to {}... ", rib_file.string(), wav_file.string());
+  std::cout << std::format("Decoding {} to {} ... ", rib_file.string(), wav_file.string());
 
   input_file.seekg(0, std::ios::end);
   size_t input_size = input_file.tellg();
