@@ -76,7 +76,8 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
   wave_header.NumOfChan = UTILS::convert_le(m_nb_channels);
 
   wave_header.SamplesPerSec = UTILS::convert_le(m_frequency);
-  wave_header.bytesPerSec = UTILS::convert_le(m_frequency * 4);
+  wave_header.blockAlign = m_nb_channels * 2;
+  wave_header.bytesPerSec = UTILS::convert_le(m_frequency * m_nb_channels * 2);
 
   output_file.seekp(0, std::ios::beg);
   output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
