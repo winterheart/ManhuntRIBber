@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: "Build all"
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { cxx: "g++", opts: "-DBUILD_TESTING=ON", add_deps: "" }
+          - { cxx: "clang++", opts: "-DBUILD_TESTING=ON", add_deps: "" }
+          # - { cxx: "x86_64-w64-mingw32-g++-posix", opts: "-DBUILD_TESTING=ON", add_deps: "g++-mingw-w64-x86-64-posix" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends cmake libgtest-dev ninja-build ${{ matrix.config.add_deps }}
+      - name: Build with ${{ matrix.config.cxx }}
+        env:
+          CXX: ${{ matrix.config.cxx }}
+        run: |
+          cmake -B build -G Ninja ${{ matrix.config.opts }}
+          cmake --build build -j2
+          ctest --test-dir build/tests -j2
