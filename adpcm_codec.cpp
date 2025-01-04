@@ -1,4 +1,4 @@
-/* SPDX-FileCopyrightText: Copyright 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com> */
+/* SPDX-FileCopyrightText: Copyright 2025 Azamat H. Hackimov <azamat.hackimov@gmail.com> */
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
 
 #include <algorithm>
@@ -122,7 +122,7 @@ int adpcm_rib_encode_frame(const std::shared_ptr<ADPCMChannelStatus> &channel_st
                            const std::shared_ptr<std::vector<int8_t>> &out_stream) {
   channel_status->prev_sample = in_stream->at(0);
   out_stream->push_back((int8_t)((uint8_t)(channel_status->prev_sample & 0xFF)));
-  out_stream->push_back((uint8_t)(channel_status->prev_sample >> 8));
+  out_stream->push_back((int8_t)(channel_status->prev_sample >> 8));
   out_stream->push_back((int8_t)channel_status->step_index);
   out_stream->push_back(0);
 
