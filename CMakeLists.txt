@@ -22,3 +22,10 @@ target_link_options(manhuntribber PRIVATE
 	$<$<PLATFORM_ID:Windows>:-static>
 	$<$<PLATFORM_ID:Windows>:-s>
 )
+
+if(BUILD_TESTING)
+	find_package(GTest REQUIRED)
+	enable_testing()
+	include(GoogleTest)
+	add_subdirectory(tests)
+endif()

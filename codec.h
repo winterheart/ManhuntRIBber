@@ -7,6 +7,8 @@
 #include <filesystem>
 #include <vector>
 
+#include "byteswap.h"
+
 typedef struct WAV_HEADER {
   char RIFF[4] = {'R', 'I', 'F', 'F'};               // RIFF Header      Magic header
   uint32_t ChunkSize = 0;                            // RIFF Chunk Size

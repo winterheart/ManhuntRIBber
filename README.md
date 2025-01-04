@@ -66,9 +66,9 @@ interleaves.
 |--------------------------------------------------------------------------------------|-------------|-----------|
 | `audio/PC/EXECUTE/*/*.RIB`                                                           | mono        | 44100     |
 | `audio/PC/MUSIC/*/*_D.RIB`, `audio/PC/MUSIC/*/*_S.RIB`, `audio/PC/SCRIPTED/*/*.RIB`, | stereo      | 44100     |
-| `audio/PC/MUSIC/*/*_C.RIB`, `audio/PC/MUSIC/*/*_L.RIB`, `audio/PC/MUSIC/*/*_M.RIB`   | stereo      | 22050     |
+| `audio/PC/MUSIC/*/*_C.RIB`, `audio/PC/MUSIC/*/*_L.RIB`, `audio/PC/MUSIC/*/*_M.RIB`¹  | stereo      | 22050     |
 
-`audio/PC/MUSIC/*/*_M.RIB` are complex files (`-c` flag).
+¹ `audio/PC/MUSIC/*/*_M.RIB` are complex files (`-c` flag).
 
 ## License
 
@@ -76,7 +76,7 @@ Project licensed under LGPL-2.1 or later license. See LICENSE file for more info
 
 ManhuntRIBber
 
-Copyright (C) 2024  Azamat H. Hackimov
+Copyright (C) 2025  Azamat H. Hackimov
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -97,4 +97,11 @@ Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 Project uses CLI11 library under a 3-Clause BSD license. See CLI11.hpp for
 additional info.
 
+----
 
+Project uses music samples from
+
+"Galway"
+Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 3.0
+http://creativecommons.org/licenses/by/3.0/
