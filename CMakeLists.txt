@@ -13,6 +13,8 @@ add_executable(manhuntribber
 	adpcm_codec.h
 	adpcm_codec.cpp
 	byteswap.h
+	codec.h
+	codec.cpp
 	main.cpp
 )
 target_include_directories(manhuntribber PUBLIC	"${PROJECT_BINARY_DIR}")
@@ -20,3 +22,10 @@ target_link_options(manhuntribber PRIVATE
 	$<$<PLATFORM_ID:Windows>:-static>
 	$<$<PLATFORM_ID:Windows>:-s>
 )
+
+if(BUILD_TESTING)
+	find_package(GTest REQUIRED)
+	enable_testing()
+	include(GoogleTest)
+	add_subdirectory(tests)
+endif()
