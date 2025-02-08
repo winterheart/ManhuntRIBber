@@ -21,23 +21,37 @@ Codec::Codec(bool is_mono, uint32_t frequency, uint32_t count_files) {
   m_nb_chunk_decoded = 2 * m_nb_chunk_encoded + 1;
 }
 
-void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path wav_file) {
-  if (wav_file.empty()) {
-    (wav_file = rib_file).replace_extension("wav");
+void Codec::decode(const std::filesystem::path &rib_file, const std::filesystem::path& wav_file) const {
+  std::filesystem::path wav_filename = wav_file;
+  if (wav_filename.empty()) {
+    (wav_filename = rib_file).replace_extension("wav");
+  }
+  std::vector<std::pair<std::filesystem::path, std::ofstream>> output_files;
+  if (m_count_files == 1) {
+    output_files.emplace_back(wav_filename, std::ofstream(wav_filename, std::ios::binary));
+  } else {
+    for (uint32_t i = 0; i < m_count_files; i++) {
+      std::filesystem::path construct_file =
+          wav_filename.parent_path() / std::format("{}_{}", wav_filename.stem().string(), i);
+      construct_file.replace_extension(wav_filename.extension());
+      output_files.emplace_back(construct_file, std::ofstream(construct_file, std::ios::binary));
+    }
   }
   std::ifstream input_file(rib_file, std::ios::binary | std::ios::ate);
-  std::ofstream output_file(wav_file, std::ios::binary);
 
   if (!input_file.is_open()) {
     std::cout << std::format("Can't open input file for reading {}", rib_file.string()) << std::endl;
     exit(1);
   }
-  if (!output_file.is_open()) {
-    std::cout << std::format("Can't open output file for writing {}", wav_file.string()) << std::endl;
-    exit(1);
+
+  for (auto const &itm : output_files) {
+    if (!itm.second.is_open()) {
+      std::cout << std::format("Can't open output file for writing {}", itm.first.string()) << std::endl;
+      exit(1);
+    }
   }
 
-  std::cout << std::format("Decoding {} to {} ... ", rib_file.string(), wav_file.string());
+  std::cout << std::format("Decoding {} to {} ... ", rib_file.string(), wav_filename.string());
 
   size_t input_size = input_file.tellg();
   input_file.seekg(0, std::ios::beg);
@@ -45,8 +59,10 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
   size_t nb_interleaves = input_size / (m_nb_channels * m_interleave);
   uint32_t nb_chunks = m_interleave / m_chunk_size;
 
-  wav_hdr wave_header;
-  output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
+
+  for (auto &itm : output_files) {
+    itm.second.seekp(sizeof(wav_hdr), std::ios::beg);
+  }
 
   for (int i = 0; i < nb_interleaves; i++) {
     std::vector<std::shared_ptr<std::vector<int16_t>>> outputs(m_nb_channels);
@@ -64,25 +80,29 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
     for (int j = 0; j < m_nb_chunk_decoded * nb_chunks; j++) {
       for (int ch = 0; ch < m_nb_channels; ch++) {
         int16_t r = UTILS::convert_le(outputs[ch]->at(j));
-        output_file.write(reinterpret_cast<char *>(&r), 2);
+        output_files.at(i % m_count_files).second.write(reinterpret_cast<char *>(&r), 2);
       }
     }
   }
-  size_t size = output_file.tellp();
-  // Rewrite wave header with actual sizes
-  wave_header.ChunkSize = UTILS::convert_le(size - 8);
-  wave_header.Subchunk2Size = UTILS::convert_le(size - 44);
-  wave_header.NumOfChan = UTILS::convert_le(m_nb_channels);
 
-  wave_header.SamplesPerSec = UTILS::convert_le(m_frequency);
-  wave_header.blockAlign = m_nb_channels * 2;
-  wave_header.bytesPerSec = UTILS::convert_le(m_frequency * m_nb_channels * 2);
+  for (int i = 0; i < m_count_files; i++) {
+    size_t size = output_files.at(i).second.tellp();
+    // Write wave header with actual sizes
+    wav_hdr wave_header;
+    wave_header.ChunkSize = UTILS::convert_le(size - 8);
+    wave_header.Subchunk2Size = UTILS::convert_le(size - 44);
+    wave_header.NumOfChan = UTILS::convert_le(m_nb_channels);
 
-  output_file.seekp(0, std::ios::beg);
-  output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
+    wave_header.SamplesPerSec = UTILS::convert_le(m_frequency);
+    wave_header.blockAlign = m_nb_channels * 2;
+    wave_header.bytesPerSec = UTILS::convert_le(m_frequency * m_nb_channels * 2);
+
+    output_files.at(i).second.seekp(0, std::ios::beg);
+    output_files.at(i).second.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
+    output_files.at(i).second.close();
+  }
 
   input_file.close();
-  output_file.close();
   std::cout << "done!" << std::endl;
 }
 

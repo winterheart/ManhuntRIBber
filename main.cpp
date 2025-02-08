@@ -13,8 +13,8 @@
 #include "codec.h"
 #include "manhuntribber_version.h"
 
-void decode(const std::filesystem::path &in_file, std::filesystem::path out_file, bool is_mono, uint32_t frequency) {
-  Codec codec(is_mono, frequency, 1);
+void decode(const std::filesystem::path &in_file, const std::filesystem::path& out_file, bool is_mono, uint32_t frequency, uint32_t nb_streams) {
+  Codec codec(is_mono, frequency, nb_streams);
   codec.decode(in_file, out_file);
 }
 
@@ -37,6 +37,7 @@ int main(int argc, char *argv[]) {
 
   std::filesystem::path in_file;
   std::filesystem::path out_file;
+  bool is_complex = false;
   bool is_mono = false;
   uint32_t frequency = 44100;
 
@@ -55,8 +56,9 @@ int main(int argc, char *argv[]) {
 
   auto decode_cmd =
       app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&]() {
-        decode(in_file, out_file, is_mono, frequency);
+        decode(in_file, out_file, is_mono, frequency, is_complex ? 6 : 1);
       });
+  decode_cmd->add_flag("-c", is_complex, "Threats input file as Complex stream")->default_val(is_complex);
   decode_cmd->add_option("-f", frequency, "Frequency of the stream")->default_val(frequency);
   decode_cmd->add_flag("-m", is_mono, "Threats input file as Mono stream")->default_val(is_mono);
   decode_cmd->add_option("input", in_file, "Input WAV file")->required()->check(CLI::ExistingFile);
