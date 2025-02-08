@@ -25,7 +25,7 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
   if (wav_file.empty()) {
     (wav_file = rib_file).replace_extension("wav");
   }
-  std::ifstream input_file(rib_file, std::ios::binary);
+  std::ifstream input_file(rib_file, std::ios::binary | std::ios::ate);
   std::ofstream output_file(wav_file, std::ios::binary);
 
   if (!input_file.is_open()) {
@@ -39,7 +39,6 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
 
   std::cout << std::format("Decoding {} to {} ... ", rib_file.string(), wav_file.string());
 
-  input_file.seekg(0, std::ios::end);
   size_t input_size = input_file.tellg();
   input_file.seekg(0, std::ios::beg);
 
