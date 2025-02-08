@@ -1,4 +1,4 @@
-/* SPDX-FileCopyrightText: Copyright 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com> */
+/* SPDX-FileCopyrightText: Copyright 2024-2025 Azamat H. Hackimov <azamat.hackimov@gmail.com> */
 /* SPDX-License-Identifier: LGPL-2.1-or-later */
 
 #include <cstdint>
@@ -44,14 +44,14 @@ int main(int argc, char *argv[]) {
   app.set_version_flag("-v", MANHUNTRIBBER_VERSION);
   argv = app.ensure_utf8(argv);
   std::cout << std::format("ManhuntRIBber {} https://github.com/winterheart/ManhuntRIBber\n"
-                           "(c) 2024 Azamat H. Hackimov <azamat.hackimov@gmail.com>\n",
+                           "(c) 2024-2025 Azamat H. Hackimov <azamat.hackimov@gmail.com>\n",
                            app.version())
             << std::endl;
 
   auto encode_cmd =
       app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&]() { encode(in_file, out_file); });
   encode_cmd->add_option("input", in_file, "Input RIB file")->required()->check(CLI::ExistingFile);
-  encode_cmd->add_option("output", out_file, "Output WAV file");
+  encode_cmd->add_option("-o,--output", out_file, "Output WAV file");
 
   auto decode_cmd =
       app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&]() {
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
   decode_cmd->add_option("-f", frequency, "Frequency of the stream")->default_val(frequency);
   decode_cmd->add_flag("-m", is_mono, "Threats input file as Mono stream")->default_val(is_mono);
   decode_cmd->add_option("input", in_file, "Input WAV file")->required()->check(CLI::ExistingFile);
-  decode_cmd->add_option("output", out_file, "Output RIB file");
+  decode_cmd->add_option("-o,--output", out_file, "Output RIB file");
 
   CLI11_PARSE(app, argc, argv);
 

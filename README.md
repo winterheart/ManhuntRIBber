@@ -4,9 +4,9 @@
 
 ```shell
 # Decoding
-manhuntribber decode JOURNO.RIB JOURNO.WAV
+manhuntribber decode -o JOURNO.WAV JOURNO.RIB
 # Encoding
-manhuntribber encode JOURNO.WAV JOURNO.RIB
+manhuntribber encode -o JOURNO.RIB JOURNO.WAV
 ```
 
 A WAV-file should be PCM encoded 16-bit stereo 22050/44100 Hz (or mono 44100 Hz
@@ -76,7 +76,7 @@ Project licensed under LGPL-2.1 or later license. See LICENSE file for more info
 
 ManhuntRIBber
 
-Copyright (C) 2025  Azamat H. Hackimov
+Copyright (C) 2024-2025  Azamat H. Hackimov
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
