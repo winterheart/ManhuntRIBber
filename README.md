@@ -4,14 +4,34 @@
 
 ```shell
 # Decoding
-manhuntribber decode JOURNO.RIB JOURNO.WAV
+manhuntribber decode -o JOURNO.WAV JOURNO.RIB
 # Encoding
-manhuntribber encode JOURNO.WAV JOURNO.RIB
+manhuntribber encode -o JOURNO.RIB JOURNO.WAV
 ```
 
+For more help, use `manhuntribber decode -h` and `manhuntribber encode -h`.
+
 A WAV-file should be PCM encoded 16-bit stereo 22050/44100 Hz (or mono 44100 Hz
-in case of mono stream) in order to be encoded to RIB format. See "File types"
-section for the reference.
+in case of mono stream) **without any metadata tags** in order to be encoded to
+RIB format. See "File types" section for the reference.
+
+## Examples
+
+```shell
+# Decode mono stream
+manhuntribber decode -m -o AXE1A.WAV audio/PC/EXECUTE/AXE/AXE1A.RIB
+
+# Decode complex stream
+# Decoded files will be MALL_M_0.WAV .. MALL_M_5.WAV 
+manhuntribber decode -c -o MALL_M.WAV audio/PC/MUSIC/MALL/MALL_M.RIB
+
+# Encode stream
+manhuntribber encode -o FE_C.RIB FE_C.WAV
+
+# Encode complex stream
+# Define exactly 6 WAV files as input
+manhuntribber encode -o MALL_M.RIB MALL_M_0.WAV MALL_M_1.WAV MALL_M_2.WAV MALL_M_3.WAV MALL_M_4.WAV MALL_M_5.WAV
+```
 
 ## Compilation
 
@@ -50,14 +70,14 @@ remaining frame and interleave space remains filled with zeros.
 There also exists complex files format mainly for music environment (like
 `ASYLUM_M.RIB`). These files are divided into six tracks. First four tracks
 based on awareness of NPC about player (0 is calm music, where player is
-undetected; 4 is intense music, where player is being in fight). Last two
+undetected; 3 is intense music, where player is being in fight). Last two
 tracks are reserved and used for some environmental sounds (like moaning and
 screams of electrocuted captive in ASYLUM level). If there is no use for such
 sounds in level, these tracks are filled with random tracks (white noise and
 raining sound).
 
 Each track is recorded in turn in an interleave sequence. Thus, to read
-the fourth track, you need to read the fourth in the sequence of six
+the fourth track, you need to read every fourth in the sequence of six
 interleaves.
 
 ## File types
@@ -76,7 +96,7 @@ Project licensed under LGPL-2.1 or later license. See LICENSE file for more info
 
 ManhuntRIBber
 
-Copyright (C) 2025  Azamat H. Hackimov
+Copyright (C) 2024-2025  Azamat H. Hackimov
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -105,3 +125,15 @@ Project uses music samples from
 Kevin MacLeod (incompetech.com)
 Licensed under Creative Commons: By Attribution 3.0
 http://creativecommons.org/licenses/by/3.0/
+
+AeroCE Ringtone 3 by ScottyD0ES -- https://freesound.org/s/717007/ -- License: Attribution NonCommercial 4.0
+
+12492 elven welcome intro by Robinhood76 -- https://freesound.org/s/725249/ -- License: Attribution NonCommercial 4.0
+
+Piano Logo by LiteSaturation -- https://freesound.org/s/785344/ -- License: Attribution NonCommercial 4.0
+
+Birds Chirping by 241378 -- https://freesound.org/s/766837/ -- License: Attribution NonCommercial 4.0
+
+Crickets chirping by Qhama -- https://freesound.org/s/766093/ -- License: Attribution NonCommercial 4.0
+
+Cinematic 10-2 Synth Gm 105 bpm by Josee1969 -- https://freesound.org/s/732830/ -- License: Attribution NonCommercial 4.0
