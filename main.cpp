@@ -18,24 +18,25 @@ void decode(const std::filesystem::path &in_file, const std::filesystem::path& o
   codec.decode(in_file, out_file);
 }
 
-void encode(const std::filesystem::path &in_file, std::filesystem::path out_file) {
-  std::ifstream input_file(in_file, std::ios::binary);
+void encode(const std::vector<std::filesystem::path>& in_files, const std::filesystem::path& out_file) {
+  std::ifstream input_file(in_files.front(), std::ios::binary);
 
   if (!input_file.is_open()) {
-    std::cout << std::format("Can't open input file for reading {}", in_file.string()) << std::endl;
+    std::cout << std::format("Can't open input file for reading {}", in_files.front().string()) << std::endl;
     exit(1);
   }
 
   wav_hdr wave_header;
   input_file.read(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
   input_file.close();
-  Codec codec(UTILS::convert_le(wave_header.NumOfChan) == 1, UTILS::convert_le(wave_header.SamplesPerSec), 1);
-  codec.encode({in_file}, out_file);
+  Codec codec(UTILS::convert_le(wave_header.NumOfChan) == 1, UTILS::convert_le(wave_header.SamplesPerSec), in_files.size());
+  codec.encode(in_files, out_file);
 }
 
 int main(int argc, char *argv[]) {
 
   std::filesystem::path in_file;
+  std::vector<std::filesystem::path> in_files;
   std::filesystem::path out_file;
   bool is_complex = false;
   bool is_mono = false;
@@ -50,9 +51,9 @@ int main(int argc, char *argv[]) {
             << std::endl;
 
   auto encode_cmd =
-      app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&]() { encode(in_file, out_file); });
-  encode_cmd->add_option("input", in_file, "Input RIB file")->required()->check(CLI::ExistingFile);
-  encode_cmd->add_option("-o,--output", out_file, "Output WAV file");
+      app.add_subcommand("encode", "Encode WAV file to RIB")->callback([&]() { encode(in_files, out_file); });
+  encode_cmd->add_option("input", in_files, "Input WAV file(s)")->required()->check(CLI::ExistingFile)->expected(1, 6);
+  encode_cmd->add_option("-o,--output", out_file, "Output RIB file");
 
   auto decode_cmd =
       app.add_subcommand("decode", "Decode RIB file to WAV")->callback([&]() {

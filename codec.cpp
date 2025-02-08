@@ -106,35 +106,51 @@ void Codec::decode(const std::filesystem::path &rib_file, const std::filesystem:
   std::cout << "done!" << std::endl;
 }
 
-void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem::path rib_file) {
-  auto in_file = in_files.front();
+void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem::path rib_file) const {
+  const auto& in_file = in_files.front();
 
   if (rib_file.empty()) {
     (rib_file = in_file).replace_extension("rib");
   }
-  std::ifstream input_file(in_file, std::ios::binary | std::ios::ate);
+  std::vector<std::pair<std::filesystem::path, std::ifstream>> input_files;
   std::ofstream output_file(rib_file, std::ios::binary);
 
-  if (!input_file.is_open()) {
-    std::cout << std::format("Can't open input file for reading {}", in_file.string()) << std::endl;
-    exit(1);
+
+  for (const auto &itm : in_files) {
+    input_files.emplace_back(itm, std::ifstream(itm, std::ios::binary | std::ios::ate));
   }
+
+  for (auto const &itm : input_files) {
+    if (!itm.second.is_open()) {
+      std::cout << std::format("Can't open input file for writing {}", itm.first.string()) << std::endl;
+      exit(1);
+    }
+  }
+
   if (!output_file.is_open()) {
     std::cout << std::format("Can't open output file for writing {}", rib_file.string()) << std::endl;
     exit(1);
   }
 
-  std::cout << std::format("Encoding {} to {}... ", in_file.string(), rib_file.string());
+  std::cout << std::format("Encoding {} to {} ... ", in_file.string(), rib_file.string());
 
-  size_t input_size = (size_t)input_file.tellg() - sizeof(wav_hdr);
+  size_t input_size = (size_t)input_files.front().second.tellg() - sizeof(wav_hdr);
   size_t interleave_size_decoded = m_nb_chunks_in_interleave * m_nb_channels * m_nb_chunk_decoded * sizeof(int16_t);
-  size_t nb_interleaves = std::ceil((float)input_size / (float)(interleave_size_decoded));
+  size_t nb_interleaves = std::ceil((float)input_size / (float)(interleave_size_decoded)) * m_count_files;
 
-  input_file.seekg(sizeof(wav_hdr), std::ios::beg);
+  for (auto &itm : input_files) {
+    itm.second.seekg(sizeof(wav_hdr), std::ios::beg);
+  }
 
-  std::vector<std::shared_ptr<ADPCMChannelStatus>> channel_status(m_nb_channels);
-  for (int ch = 0; ch < m_nb_channels; ch++) {
-    channel_status.at(ch) = std::make_shared<ADPCMChannelStatus>();
+  std::vector<std::vector<std::shared_ptr<ADPCMChannelStatus>>> channel_status(
+      m_count_files,
+      std::vector<std::shared_ptr<ADPCMChannelStatus>>(m_nb_channels)
+      );
+
+  for (int i = 0; i < m_count_files; i++) {
+    for (int ch = 0; ch < m_nb_channels; ch++) {
+      channel_status.at(i).at(ch) = std::make_shared<ADPCMChannelStatus>();
+    }
   }
 
   for (int i = 0; i < nb_interleaves; i++) {
@@ -153,13 +169,13 @@ void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem:
       for (int j = 0; j < m_nb_chunk_decoded; j++) {
         for (int ch = 0; ch < m_nb_channels; ch++) {
           int16_t r;
-          input_file.read(reinterpret_cast<char *>(&r), 2);
+          input_files.at(i % m_count_files).second.read(reinterpret_cast<char *>(&r), 2);
           inputs.at(ch)->push_back(UTILS::convert_le(r));
         }
       }
 
       for (int ch = 0; ch < m_nb_channels; ch++) {
-        adpcm_rib_encode_frame(channel_status.at(ch), inputs.at(ch), outputs.at(ch));
+        adpcm_rib_encode_frame(channel_status.at(i % m_count_files).at(ch), inputs.at(ch), outputs.at(ch));
       }
     }
 

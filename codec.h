@@ -32,7 +32,7 @@ class Codec {
 public:
   Codec(bool is_mono, uint32_t frequency, uint32_t count_files);
   void decode(const std::filesystem::path &rib_file, const std::filesystem::path& wav_file) const;
-  void encode(std::vector<std::filesystem::path> in_files, std::filesystem::path rib_file);
+  void encode(std::vector<std::filesystem::path> in_files, std::filesystem::path rib_file) const;
 
 private:
   /// Count of files in RIB. Mostly is 1, but for music files (M variant) is 6.
