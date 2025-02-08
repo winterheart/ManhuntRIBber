@@ -105,3 +105,15 @@ Project uses music samples from
 Kevin MacLeod (incompetech.com)
 Licensed under Creative Commons: By Attribution 3.0
 http://creativecommons.org/licenses/by/3.0/
+
+AeroCE Ringtone 3 by ScottyD0ES -- https://freesound.org/s/717007/ -- License: Attribution NonCommercial 4.0
+
+12492 elven welcome intro by Robinhood76 -- https://freesound.org/s/725249/ -- License: Attribution NonCommercial 4.0
+
+Piano Logo by LiteSaturation -- https://freesound.org/s/785344/ -- License: Attribution NonCommercial 4.0
+
+Birds Chirping by 241378 -- https://freesound.org/s/766837/ -- License: Attribution NonCommercial 4.0
+
+Crickets chirping by Qhama -- https://freesound.org/s/766093/ -- License: Attribution NonCommercial 4.0
+
+Cinematic 10-2 Synth Gm 105 bpm by Josee1969 -- https://freesound.org/s/732830/ -- License: Attribution NonCommercial 4.0
