@@ -134,7 +134,11 @@ void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem:
 
   std::cout << std::format("Encoding {} to {} ... ", in_file.string(), rib_file.string());
 
-  size_t input_size = (size_t)input_files.front().second.tellg() - sizeof(wav_hdr);
+  size_t input_size = 0;
+  for (auto const &itm : input_files) {
+    input_size = std::max(input_size, (size_t)input_files.front().second.tellg() - sizeof(wav_hdr));
+  }
+
   size_t interleave_size_decoded = m_nb_chunks_in_interleave * m_nb_channels * m_nb_chunk_decoded * sizeof(int16_t);
   size_t nb_interleaves = std::ceil((float)input_size / (float)(interleave_size_decoded)) * m_count_files;
 
