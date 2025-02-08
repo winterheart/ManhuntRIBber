@@ -42,13 +42,13 @@ void Codec::decode(const std::filesystem::path &rib_file, std::filesystem::path 
   size_t input_size = input_file.tellg();
   input_file.seekg(0, std::ios::beg);
 
-  size_t nb_samples = input_size / (m_nb_channels * m_interleave);
+  size_t nb_interleaves = input_size / (m_nb_channels * m_interleave);
   uint32_t nb_chunks = m_interleave / m_chunk_size;
 
   wav_hdr wave_header;
   output_file.write(reinterpret_cast<char *>(&wave_header), sizeof(wav_hdr));
 
-  for (int i = 0; i < nb_samples; i++) {
+  for (int i = 0; i < nb_interleaves; i++) {
     std::vector<std::shared_ptr<std::vector<int16_t>>> outputs(m_nb_channels);
     for (auto &out : outputs) {
       out = std::make_shared<std::vector<int16_t>>();
@@ -92,7 +92,7 @@ void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem:
   if (rib_file.empty()) {
     (rib_file = in_file).replace_extension("rib");
   }
-  std::ifstream input_file(in_file, std::ios::binary);
+  std::ifstream input_file(in_file, std::ios::binary | std::ios::ate);
   std::ofstream output_file(rib_file, std::ios::binary);
 
   if (!input_file.is_open()) {
@@ -106,40 +106,45 @@ void Codec::encode(std::vector<std::filesystem::path> in_files, std::filesystem:
 
   std::cout << std::format("Encoding {} to {}... ", in_file.string(), rib_file.string());
 
-  std::vector<std::vector<int16_t>> inputs(m_nb_channels);
-  std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(m_nb_channels);
-  for (auto &out : outputs) {
-    out = std::make_shared<std::vector<int8_t>>();
-  }
+  size_t input_size = (size_t)input_file.tellg() - sizeof(wav_hdr);
+  size_t interleave_size_decoded = m_nb_chunks_in_interleave * m_nb_channels * m_nb_chunk_decoded * sizeof(int16_t);
+  size_t nb_interleaves = std::ceil((float)input_size / (float)(interleave_size_decoded));
 
-  // Ignore wav header, we already know all needed data
   input_file.seekg(sizeof(wav_hdr), std::ios::beg);
-  while (!input_file.eof()) {
-    for (int ch = 0; ch < m_nb_channels; ch++) {
-      int16_t r;
-      input_file.read(reinterpret_cast<char *>(&r), 2);
-      inputs[ch].push_back(UTILS::convert_le(r));
-    }
-  }
-  input_file.close();
-  int nb_interleaves_per_ch = std::floor(inputs[0].size() / (2 * m_nb_chunk_encoded * m_nb_chunks_in_interleave));
 
+  std::vector<std::shared_ptr<ADPCMChannelStatus>> channel_status(m_nb_channels);
   for (int ch = 0; ch < m_nb_channels; ch++) {
-    // Reserve additional size in inputs
-    inputs[ch].reserve(nb_interleaves_per_ch * 2 * m_nb_chunk_encoded * m_nb_chunks_in_interleave);
-
-    auto channel_status = std::make_shared<ADPCMChannelStatus>();
-    for (int sample = 0; sample < nb_interleaves_per_ch * m_nb_chunks_in_interleave; sample++) {
-      std::vector<int16_t> input_frame(inputs[ch].begin() + sample * m_nb_chunk_decoded,
-                                       inputs[ch].begin() + (sample + 1) * m_nb_chunk_decoded);
-      adpcm_rib_encode_frame(channel_status, std::make_shared<std::vector<int16_t>>(input_frame), outputs[ch]);
-    }
+    channel_status.at(ch) = std::make_shared<ADPCMChannelStatus>();
   }
 
-  for (uint32_t i = 0; i < nb_interleaves_per_ch * m_interleave; i += m_interleave) {
+  for (int i = 0; i < nb_interleaves; i++) {
+    std::vector<std::shared_ptr<std::vector<int8_t>>> outputs(m_nb_channels);
+
     for (int ch = 0; ch < m_nb_channels; ch++) {
-      std::vector<int8_t> buffer(outputs[ch]->begin() + i, outputs[ch]->begin() + (i + m_interleave));
-      output_file.write(reinterpret_cast<char *>(buffer.data()), m_interleave);
+      outputs.at(ch) = std::make_shared<std::vector<int8_t>>();
+    }
+
+    for (int k = 0; k < m_nb_chunks_in_interleave; k++) {
+      std::vector<std::shared_ptr<std::vector<int16_t>>> inputs(m_nb_channels);
+      for (int ch = 0; ch < m_nb_channels; ch++) {
+        inputs.at(ch) = std::make_shared<std::vector<int16_t>>();
+      }
+
+      for (int j = 0; j < m_nb_chunk_decoded; j++) {
+        for (int ch = 0; ch < m_nb_channels; ch++) {
+          int16_t r;
+          input_file.read(reinterpret_cast<char *>(&r), 2);
+          inputs.at(ch)->push_back(UTILS::convert_le(r));
+        }
+      }
+
+      for (int ch = 0; ch < m_nb_channels; ch++) {
+        adpcm_rib_encode_frame(channel_status.at(ch), inputs.at(ch), outputs.at(ch));
+      }
+    }
+
+    for (int ch = 0; ch < m_nb_channels; ch++) {
+      output_file.write(reinterpret_cast<char *>(outputs.at(ch)->data()), outputs.at(ch)->size());
     }
   }
 
