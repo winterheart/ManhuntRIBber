@@ -74,12 +74,12 @@ void Codec::decode(const std::filesystem::path &rib_file, const std::filesystem:
       for (int j = 0; j < nb_chunks; j++) {
         std::vector<int8_t> input_buffer(m_chunk_size);
         input_file.read(reinterpret_cast<char *>(input_buffer.data()), m_chunk_size);
-        adpcm_rib_decode_frame(std::make_shared<std::vector<int8_t>>(input_buffer), outputs[ch]);
+        adpcm_rib_decode_frame(std::make_shared<std::vector<int8_t>>(input_buffer), outputs.at(ch));
       }
     }
     for (int j = 0; j < m_nb_chunk_decoded * nb_chunks; j++) {
       for (int ch = 0; ch < m_nb_channels; ch++) {
-        int16_t r = UTILS::convert_le(outputs[ch]->at(j));
+        int16_t r = UTILS::convert_le(outputs.at(ch)->at(j));
         output_files.at(i % m_count_files).second.write(reinterpret_cast<char *>(&r), 2);
       }
     }
